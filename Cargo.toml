@@ -1,0 +1,8 @@
+[package]
+name = "loading"
+version = "0.0.1"
+authors = ["wyhaya <wyhaya@gmail.com>"]
+edition = "2018"
+license = "MIT"
+
+[dependencies]
