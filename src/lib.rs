@@ -6,55 +6,69 @@ use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct Loading {
-    sender: Sender<Signal>,
-}
-
-#[derive(Debug, Clone)]
-enum Signal {
-    Shape(&'static str),
-    Text(String),
-    End(String, Exit),
-}
-
-#[derive(Debug, Clone)]
-enum Exit {
-    Success,
-    Fail,
-}
-impl Exit {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Exit::Success => "✔",
-            Exit::Fail => "✖",
-        }
-    }
+    sender: Option<Sender<Signal>>,
+    animation: Animation,
+    duration: Duration,
 }
 
 impl Loading {
     pub fn new() -> Self {
-        let (se, re) = mpsc::channel();
-        Self::update_stdout(re);
-        Self::update_animation(
-            se.clone(),
-            Animation::new(vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
-            Duration::from_millis(80),
-        );
-
-        Self { sender: se }
+        Self {
+            sender: None,
+            animation: Animation::new(vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
+            duration: Duration::from_millis(80),
+        }
     }
 
-    pub fn builder(frames: Vec<&'static str>, interval: Duration) -> Self {
-        let (se, re) = mpsc::channel();
-        Self::update_stdout(re);
-        Self::update_animation(se.clone(), Animation::new(frames), interval);
+    pub fn frame(mut self, frames: Vec<&'static str>) -> Self {
+        self.animation = Animation::new(frames);
+        self
+    }
 
-        Self { sender: se }
+    pub fn update_time(mut self, duration: Duration) -> Self {
+        self.duration = duration;
+        self
+    }
+
+    pub fn start(&mut self) {
+        let (se, re) = mpsc::channel();
+        self.sender = Some(se.clone());
+        Self::update_stdout(re);
+        Self::update_animation(se.clone(), self.animation.clone(), self.duration);
+    }
+
+    pub fn end(&mut self) {
+        if let Some(sender) = &self.sender {
+            let _ = sender.send(Signal::Exit);
+        }
+    }
+
+    pub fn text<T: ToString>(&self, text: T) {
+        if let Some(sender) = &self.sender {
+            let _ = sender.send(Signal::Text(text.to_string()));
+        }
+    }
+
+    pub fn success<T: ToString>(&self, text: T) {
+        if let Some(sender) = &self.sender {
+            let _ = sender.send(Signal::Next(Status::Success, text.to_string()));
+        }
+    }
+
+    pub fn fail<T: ToString>(&self, text: T) {
+        if let Some(sender) = &self.sender {
+            let _ = sender.send(Signal::Next(Status::Fail, text.to_string()));
+        }
+    }
+
+    pub fn warn(&self) {
+
     }
 
     fn update_animation(sender: Sender<Signal>, mut animation: Animation, duration: Duration) {
         thread::spawn(move || loop {
             thread::sleep(duration);
-            if sender.send(Signal::Shape(animation.next())).is_err() {
+            if sender.send(Signal::Frame(animation.next())).is_err() {
                 break;
             }
         });
@@ -64,54 +78,44 @@ impl Loading {
         let mut stdout = stdout();
 
         thread::spawn(move || {
-            let mut shape = "";
+            let mut frame = "";
             let mut text = String::new();
 
             while let Ok(signal) = receiver.recv() {
                 match signal {
-                    Signal::Shape(s) => {
-                        shape = s;
+                    Signal::Frame(s) => {
+                        frame = s;
 
                         stdout.write(b"\x1B[0E");
-                        stdout.write(format!("{} {}", shape, text).as_bytes());
+                        stdout.write(format!("{} {}", frame, text).as_bytes());
                         stdout.flush();
                     }
                     Signal::Text(s) => {
                         text = s;
 
                         stdout.write(b"\x1B[0E");
-                        stdout.write(format!("{} {}", shape, text).as_bytes());
+                        stdout.write(format!("{} {}", frame, text).as_bytes());
                         stdout.flush();
                     }
-                    Signal::End(s, exit) => {
-                        text = s;
-                        shape = exit.as_str();
+                    Signal::Next(status, s) => {
+                        text = String::new();
+                        frame = status.as_str();
 
                         stdout.write(b"\x1B[0E");
-                        stdout.write(format!("{} {}", shape, text).as_bytes());
+                        stdout.write(format!("{} {}", frame, s).as_bytes());
+                        stdout.write(b"\n");
                         stdout.flush();
+                    }
+                    Signal::Exit => {
                         break;
                     }
                 }
             }
         });
     }
-
-    pub fn text<T: ToString>(&self, text: T) {
-        let _ = self.sender.send(Signal::Text(text.to_string()));
-    }
-
-    pub fn success<T: ToString>(&self, text: T) {
-        let _ = self
-            .sender
-            .send(Signal::End(text.to_string(), Exit::Success));
-    }
-
-    pub fn fail<T: ToString>(&self, text: T) {
-        let _ = self.sender.send(Signal::End(text.to_string(), Exit::Fail));
-    }
 }
 
+#[derive(Debug, Clone)]
 struct Animation {
     index: usize,
     frames: Vec<&'static str>,
@@ -132,6 +136,29 @@ impl Animation {
                 self.index = 0;
                 self.frames[0]
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Signal {
+    Frame(&'static str),
+    Text(String),
+    Next(Status, String),
+    Exit,
+}
+
+#[derive(Debug, Clone)]
+enum Status {
+    Success,
+    Fail,
+}
+
+impl Status {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Status::Success => "✔",
+            Status::Fail => "✖",
         }
     }
 }
