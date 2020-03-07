@@ -157,8 +157,8 @@ enum Status {
 impl Status {
     fn as_str(&self) -> &'static str {
         match self {
-            Status::Success => "✔",
-            Status::Fail => "✖",
+            Status::Success => "\x1B[32m✔\x1B[0m",
+            Status::Fail => "\x1B[31m✖\x1B[0m",
         }
     }
 }
