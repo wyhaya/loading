@@ -1,8 +1,17 @@
 [package]
 name = "loading"
-version = "0.0.1"
+version = "0.1.1"
 authors = ["wyhaya <wyhaya@gmail.com>"]
 edition = "2018"
 license = "MIT"
+description = "Show loading in terminal"
+readme = "README.md"
+homepage = "https://github.com/wyhaya/loading"
+repository = "https://github.com/wyhaya/loading.git"
+
+keywords = [
+    "terminal",
+    "loading"
+]
 
 [dependencies]

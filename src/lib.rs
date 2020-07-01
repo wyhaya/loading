@@ -1,10 +1,30 @@
+//! Example:
+//! ```
+//! use loading::Loading;
+//! use std::thread;
+//! use std::time::Duration;
+//!
+//! fn main() {
+//!     let mut loading = Loading::new();
+//!
+//!     loading.start();
+//!
+//!     for i in 0..100 {
+//!         loading.text(format!("Loading {}", i));
+//!         thread::sleep(Duration::from_millis(50));
+//!     }
+//!   
+//!     loading.success("OK");
+//!     loading.end();
+//! }
+//! ```
+
 use std::io::{stdout, Write};
-use std::result::Result::Ok;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Loading {
     sender: Option<Sender<Signal>>,
     frames: Frames,
@@ -12,75 +32,88 @@ pub struct Loading {
 }
 
 impl Loading {
+    /// Create a Loading
     pub fn new() -> Self {
         Self {
             sender: None,
-            frames: Frames::new(vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
+            frames: Frames::default(),
             interval: Duration::from_millis(80),
         }
     }
 
+    /// Modify the style of frame
     pub fn frame(mut self, frames: Vec<&'static str>) -> Self {
         self.frames = Frames::new(frames);
         self
     }
 
+    /// Modify the frame refresh time. Default: 80ms
     pub fn interval(mut self, interval: Duration) -> Self {
         self.interval = interval;
         self
     }
 
+    fn sender(&self) -> &Sender<Signal> {
+        self.sender
+            .as_ref()
+            .expect("Please call the `self.start()` first")
+    }
+
+    /// Start in the terminal
     pub fn start(&mut self) {
-        let (se, re) = mpsc::channel();
-        self.sender = Some(se.clone());
-        Self::update_stdout(re);
-        Self::update_animation(se.clone(), self.frames.clone(), self.interval);
-    }
-
-    pub fn end(&mut self) {
-        if let Some(sender) = &self.sender {
-            let _ = sender.send(Signal::Exit);
+        if let Some(_) = self.sender {
+            panic!("The `self.start()` can only be called once")
         }
+
+        let (sender, receiver) = mpsc::channel();
+        self.sender = Some(sender.clone());
+
+        Self::update_stdout(receiver);
+        Self::update_animation(sender, self.frames.clone(), self.interval);
     }
 
+    /// End in terminal
+    pub fn end(&self) {
+        let _ = self.sender().send(Signal::Exit);
+    }
+
+    /// Modify the currently displayed text
     pub fn text<T: ToString>(&self, text: T) {
-        if let Some(sender) = &self.sender {
-            let _ = sender.send(Signal::Text(text.to_string()));
-        }
+        let _ = self.sender().send(Signal::Text(text.to_string()));
     }
 
+    /// Save the current line as 'success' and continue to load on the next line
     pub fn success<T: ToString>(&self, text: T) {
-        if let Some(sender) = &self.sender {
-            let _ = sender.send(Signal::Next(Status::Success, text.to_string()));
-        }
+        let _ = self
+            .sender()
+            .send(Signal::Next(Status::Success, text.to_string()));
     }
 
+    /// Save the current line as 'fail' and continue to load on the next line
     pub fn fail<T: ToString>(&self, text: T) {
-        if let Some(sender) = &self.sender {
-            let _ = sender.send(Signal::Next(Status::Fail, text.to_string()));
-        }
+        let _ = self
+            .sender()
+            .send(Signal::Next(Status::Fail, text.to_string()));
     }
 
+    /// Save the current line as 'warn' and continue to load on the next line
     pub fn warn<T: ToString>(&self, text: T) {
-        if let Some(sender) = &self.sender {
-            let _ = sender.send(Signal::Next(Status::Warn, text.to_string()));
-        }
+        let _ = self
+            .sender()
+            .send(Signal::Next(Status::Warn, text.to_string()));
     }
 
+    /// Save the current line as 'info' and continue to load on the next line
     pub fn info<T: ToString>(&self, text: T) {
-        if let Some(sender) = &self.sender {
-            let _ = sender.send(Signal::Next(Status::Info, text.to_string()));
-        }
+        let _ = self
+            .sender()
+            .send(Signal::Next(Status::Info, text.to_string()));
     }
 
     fn update_animation(sender: Sender<Signal>, mut frames: Frames, duration: Duration) {
         thread::spawn(move || {
-            sender.send(Signal::Frame(frames.next()));
-            loop {
+            while let Ok(_) = sender.send(Signal::Frame(frames.next())) {
                 thread::sleep(duration);
-                if sender.send(Signal::Frame(frames.next())).is_err() {
-                    break;
-                }
             }
         });
     }
@@ -132,6 +165,12 @@ struct Frames {
     frames: Vec<&'static str>,
 }
 
+impl Default for Frames {
+    fn default() -> Self {
+        Self::new(vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+    }
+}
+
 impl Frames {
     fn new(frames: Vec<&'static str>) -> Self {
         Self { index: 0, frames }
@@ -151,7 +190,7 @@ impl Frames {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum Signal {
     Frame(&'static str),
     Text(String),
@@ -159,7 +198,7 @@ enum Signal {
     Exit,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum Status {
     Success,
     Fail,
