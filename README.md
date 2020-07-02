@@ -5,7 +5,7 @@
 [![docs.rs](https://img.shields.io/badge/docs-rs-informational.svg?style=flat-square)](https://docs.rs/loading)
 [![LICENSE](https://img.shields.io/crates/l/loading.svg?style=flat-square)](./LICENSE)
 
-This is a library that displays the loading in the `terminal`, used when the program is `waiting`, or when the `progress` needs to be displayed, to improve the user experience.
+Used to display the loading style in the terminal, when the program needs to `wait`, or display the `progress`, it can improve the user experience.
 
 ![preview](https://user-images.githubusercontent.com/23690145/86200915-90f6ce80-bb90-11ea-8de7-37e83d124687.gif)
 
