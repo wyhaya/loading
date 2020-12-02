@@ -24,7 +24,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Loading {
     sender: Option<Sender<Signal>>,
     frames: Frames,
@@ -183,7 +183,7 @@ impl Frames {
                 s
             }
             None => {
-                self.index = 0;
+                self.index = 1;
                 self.frames[0]
             }
         }
