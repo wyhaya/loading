@@ -80,9 +80,9 @@ impl Loading {
 
     /// End in terminal
     pub fn end(&self) {
-        let _ = self.sender().send(Signal::Exit);
-        // TODO
-        thread::sleep(self.interval);
+        let (sender, receiver) = mpsc::channel();
+        let _ = self.sender().send(Signal::Exit(sender));
+        let _ = receiver.recv();
     }
 
     /// Modify the currently displayed text
@@ -160,8 +160,9 @@ impl Loading {
                         write_content!("{} {}\n", status.as_str(), s);
                         text = None;
                     }
-                    Signal::Exit => {
+                    Signal::Exit(sender) => {
                         write_content!();
+                        let _ = sender.send(());
                         break;
                     }
                 }
@@ -175,7 +176,7 @@ enum Signal {
     Frame(char),
     Text(String),
     Next(Status, String),
-    Exit,
+    Exit(Sender<()>),
 }
 
 #[derive(Debug, Clone)]
