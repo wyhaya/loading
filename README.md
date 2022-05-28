@@ -5,10 +5,9 @@
 [![docs.rs](https://img.shields.io/badge/docs-rs-informational.svg?style=flat-square)](https://docs.rs/loading)
 [![LICENSE](https://img.shields.io/crates/l/loading.svg?style=flat-square)](./LICENSE)
 
-Used to display the loading style in the terminal, when the program needs to `wait`, or display the `progress`, it can improve the user experience.
+Used to display `loading` or `progress` in the terminal
 
-![preview](https://user-images.githubusercontent.com/23690145/86200915-90f6ce80-bb90-11ea-8de7-37e83d124687.gif)
-
+![Preview](https://user-images.githubusercontent.com/23690145/170811536-3fe5f09a-df2a-43fe-9f42-6843d8bb4082.gif)
 
 ## Use
 
