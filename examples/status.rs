@@ -3,9 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 fn main() {
-    let mut loading = Loading::new();
-
-    loading.start();
+    let loading = Loading::default();
 
     for status in 0..4 {
         for i in 0..5 {

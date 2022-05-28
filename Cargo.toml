@@ -1,6 +1,6 @@
 [package]
 name = "loading"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["wyhaya <wyhaya@gmail.com>"]
 edition = "2021"
 license = "MIT"
