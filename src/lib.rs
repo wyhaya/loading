@@ -16,7 +16,7 @@
 //! loading.end();
 //! ```
 
-use std::io::{stdout, Write};
+use std::io::{stderr, stdout, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
@@ -38,6 +38,16 @@ impl Loading {
         let (sender, receiver) = mpsc::channel();
 
         Self::update_stdout(receiver);
+        Self::update_animation(sender.clone(), spinner);
+
+        Self { sender }
+    }
+
+    /// Create a stderr loading
+    pub fn new_stderr(spinner: Spinner) -> Self {
+        let (sender, receiver) = mpsc::channel();
+
+        Self::update_stderr(receiver);
         Self::update_animation(sender.clone(), spinner);
 
         Self { sender }
@@ -107,6 +117,47 @@ impl Loading {
                     let _ = stdout.write(b"\x1B[2K\x1B[0G");
                     let _ = stdout.write(format!($($arg)*).as_bytes());
                     let _ = stdout.flush();
+                };
+            }
+
+            while let Ok(signal) = receiver.recv() {
+                match signal {
+                    Signal::Frame(s) => {
+                        frame = s;
+                        write_content!("{} {}", frame, text);
+                    }
+                    Signal::Text(s) => {
+                        write_content!("{} {}", frame, s);
+                        text = s;
+                    }
+                    Signal::Next(status, s) => {
+                        write_content!("{} {}\n", status.as_str(), s);
+                    }
+                    Signal::Exit(sender) => {
+                        write_content!();
+                        let _ = sender.send(());
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    fn update_stderr(receiver: Receiver<Signal>) {
+        thread::spawn(move || {
+            let mut stderr = stderr();
+            let mut frame = "";
+            let mut text = String::new();
+
+            macro_rules! write_content {
+                () => {
+                    let _ = stderr.write(b"\x1B[2K\x1B[0G");
+                    let _ = stderr.flush();
+                };
+                ($($arg:tt)*) => {
+                    let _ = stderr.write(b"\x1B[2K\x1B[0G");
+                    let _ = stderr.write(format!($($arg)*).as_bytes());
+                    let _ = stderr.flush();
                 };
             }
 
