@@ -16,7 +16,7 @@
 //! loading.end();
 //! ```
 
-use std::io::{stderr, stdout, Write};
+use std::io::{stderr, stdout, Result, Stderr, Stdout, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
@@ -28,33 +28,32 @@ pub struct Loading {
 
 impl Default for Loading {
     fn default() -> Self {
-        Self::new(Spinner::default())
+        Self::with_stdout(Spinner::default())
     }
 }
 
 impl Loading {
     /// Create a stdout loading
-    pub fn new(spinner: Spinner) -> Self {
-        let (sender, receiver) = mpsc::channel();
-
-        Self::update_stdout(receiver);
-        Self::update_animation(sender.clone(), spinner);
-
-        Self { sender }
+    pub fn with_stdout(spinner: Spinner) -> Self {
+        Self::create(spinner, Output::Stdout(stdout()))
     }
 
     /// Create a stderr loading
-    pub fn new_stderr(spinner: Spinner) -> Self {
+    pub fn with_stderr(spinner: Spinner) -> Self {
+        Self::create(spinner, Output::Stderr(stderr()))
+    }
+
+    fn create(spinner: Spinner, output: Output) -> Self {
         let (sender, receiver) = mpsc::channel();
 
-        Self::update_stderr(receiver);
+        Self::update_output(receiver, output);
         Self::update_animation(sender.clone(), spinner);
 
         Self { sender }
     }
 
     /// End loading
-    pub fn end(&self) {
+    pub fn end(self) {
         let (sender, receiver) = mpsc::channel();
         let _ = self.sender.send(Signal::Exit(sender));
         // Waiting for the sub -thread to exit
@@ -102,21 +101,20 @@ impl Loading {
         });
     }
 
-    fn update_stdout(receiver: Receiver<Signal>) {
+    fn update_output(receiver: Receiver<Signal>, mut output: Output) {
         thread::spawn(move || {
-            let mut stdout = stdout();
             let mut frame = "";
             let mut text = String::new();
 
             macro_rules! write_content {
                 () => {
-                    let _ = stdout.write(b"\x1B[2K\x1B[0G");
-                    let _ = stdout.flush();
+                    let _ = output.write(b"\x1B[2K\x1B[0G");
+                    let _ = output.flush();
                 };
                 ($($arg:tt)*) => {
-                    let _ = stdout.write(b"\x1B[2K\x1B[0G");
-                    let _ = stdout.write(format!($($arg)*).as_bytes());
-                    let _ = stdout.flush();
+                    let _ = output.write(b"\x1B[2K\x1B[0G");
+                    let _ = output.write(format!($($arg)*).as_bytes());
+                    let _ = output.flush();
                 };
             }
 
@@ -142,46 +140,28 @@ impl Loading {
             }
         });
     }
+}
 
-    fn update_stderr(receiver: Receiver<Signal>) {
-        thread::spawn(move || {
-            let mut stderr = stderr();
-            let mut frame = "";
-            let mut text = String::new();
+#[derive(Debug)]
+enum Output {
+    Stdout(Stdout),
+    Stderr(Stderr),
+}
 
-            macro_rules! write_content {
-                () => {
-                    let _ = stderr.write(b"\x1B[2K\x1B[0G");
-                    let _ = stderr.flush();
-                };
-                ($($arg:tt)*) => {
-                    let _ = stderr.write(b"\x1B[2K\x1B[0G");
-                    let _ = stderr.write(format!($($arg)*).as_bytes());
-                    let _ = stderr.flush();
-                };
-            }
-
-            while let Ok(signal) = receiver.recv() {
-                match signal {
-                    Signal::Frame(s) => {
-                        frame = s;
-                        write_content!("{} {}", frame, text);
-                    }
-                    Signal::Text(s) => {
-                        write_content!("{} {}", frame, s);
-                        text = s;
-                    }
-                    Signal::Next(status, s) => {
-                        write_content!("{} {}\n", status.as_str(), s);
-                    }
-                    Signal::Exit(sender) => {
-                        write_content!();
-                        let _ = sender.send(());
-                        break;
-                    }
-                }
-            }
-        });
+impl Write for Output {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        match self {
+            Self::Stdout(out) => out.write(buf),
+            Self::Stderr(out) => out.write(buf),
+        }
+    }
+    #[inline]
+    fn flush(&mut self) -> Result<()> {
+        match self {
+            Self::Stdout(out) => out.flush(),
+            Self::Stderr(out) => out.flush(),
+        }
     }
 }
 

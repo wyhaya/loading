@@ -1,7 +1,6 @@
 [package]
 name = "loading"
-version = "0.3.0"
-authors = ["wyhaya <wyhaya@gmail.com>"]
+version = "0.4.0"
 edition = "2021"
 license = "MIT"
 description = "Show loading in terminal"
